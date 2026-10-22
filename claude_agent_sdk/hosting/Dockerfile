@@ -6,14 +6,23 @@
 #   cd claude_agent_sdk/
 #   docker build -f hosting/Dockerfile -t research-agent .
 
-FROM python:3.11-slim
+FROM node:22.23.4-bookworm-slim AS node_runtime
+
+FROM python:3.11-slim-bookworm
+
+COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libstdc++6 ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && node -e 'if (process.versions.node !== "22.23.4") process.exit(1)'
 
 # The Agent SDK shells out to the Claude Code CLI under the hood. Install Node
 # and the CLI so `query()` has a runtime to drive.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
- && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
- && apt-get install -y --no-install-recommends nodejs \
  && npm install -g @anthropic-ai/claude-code@2.1.140 \
  && apt-get purge -y curl \
  && apt-get autoremove -y \
