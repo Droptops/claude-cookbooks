@@ -1,0 +1,44 @@
+name: Node runtime security
+
+on:
+  pull_request:
+    paths:
+      - 'claude_agent_sdk/hosting/**'
+      - 'claude_agent_sdk/observability_agent/**'
+      - 'managed_agents/roadtrip_planner/**'
+      - '.github/workflows/node-runtime-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile: ['hosting/Dockerfile', 'observability_agent/docker/Dockerfile']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the example image
+        run: docker build --pull -f "claude_agent_sdk/${{ matrix.dockerfile }}" -t node-security-test claude_agent_sdk
+      - name: Verify the runtime and npm inside the image
+        run: |
+          docker run --rm --entrypoint node node-security-test -e 'if (process.versions.node !== "22.23.4") process.exit(1); console.log(process.version)'
+          docker run --rm --entrypoint npm node-security-test --version
+
+  roadtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: managed_agents/roadtrip_planner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
